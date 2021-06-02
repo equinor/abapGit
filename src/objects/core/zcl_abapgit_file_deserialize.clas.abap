@@ -27,30 +27,12 @@ CLASS zcl_abapgit_file_deserialize DEFINITION
         !it_results       TYPE zif_abapgit_definitions=>ty_results_tt
       RETURNING
         VALUE(rt_results) TYPE zif_abapgit_definitions=>ty_results_tt.
-    CLASS-METHODS adjust_namespaces
-      IMPORTING
-        !it_results       TYPE zif_abapgit_definitions=>ty_results_tt
-      RETURNING
-        VALUE(rt_results) TYPE zif_abapgit_definitions=>ty_results_tt.
 
 ENDCLASS.
 
 
 
 CLASS zcl_abapgit_file_deserialize IMPLEMENTATION.
-
-
-  METHOD adjust_namespaces.
-
-    FIELD-SYMBOLS: <ls_result> LIKE LINE OF rt_results.
-
-    rt_results = it_results.
-
-    LOOP AT rt_results ASSIGNING <ls_result>.
-      REPLACE ALL OCCURRENCES OF '#' IN <ls_result>-obj_name WITH '/'.
-    ENDLOOP.
-
-  ENDMETHOD.
 
 
   METHOD filter_files_to_deserialize.
@@ -144,18 +126,17 @@ CLASS zcl_abapgit_file_deserialize IMPLEMENTATION.
 
   METHOD get_results.
 
-    rt_results = adjust_namespaces(
-                   prioritize_deser(
-                     filter_files_to_deserialize(
-                       it_results = zcl_abapgit_file_status=>status( io_repo )
-                       ii_log     = ii_log ) ) ).
+    rt_results = prioritize_deser(
+                   filter_files_to_deserialize(
+                     it_results = zcl_abapgit_file_status=>status( io_repo )
+                     ii_log     = ii_log ) ).
 
   ENDMETHOD.
 
 
   METHOD prioritize_deser.
 
-* todo, refactor this method
+* todo, refactor this method #3536
 
     FIELD-SYMBOLS: <ls_result> LIKE LINE OF it_results.
 
@@ -181,16 +162,6 @@ CLASS zcl_abapgit_file_deserialize IMPLEMENTATION.
 
 * ISAP has to be handled before ISRP
     LOOP AT it_results ASSIGNING <ls_result> WHERE obj_type = 'IASP'.
-      APPEND <ls_result> TO rt_results.
-    ENDLOOP.
-
-* ENHS has to be handled before ENHO
-    LOOP AT it_results ASSIGNING <ls_result> WHERE obj_type = 'ENHS'.
-      APPEND <ls_result> TO rt_results.
-    ENDLOOP.
-
-* ENHO has to be handled before ENHC
-    LOOP AT it_results ASSIGNING <ls_result> WHERE obj_type = 'ENHO'.
       APPEND <ls_result> TO rt_results.
     ENDLOOP.
 
@@ -222,12 +193,29 @@ CLASS zcl_abapgit_file_deserialize IMPLEMENTATION.
         AND obj_type <> 'DEVC'
         AND obj_type <> 'ENHS'
         AND obj_type <> 'ENHO'
+        AND obj_type <> 'ENHC'
+        AND obj_type <> 'ENSC'
         AND obj_type <> 'DDLS'
         AND obj_type <> 'SPRX'
         AND obj_type <> 'WEBI'
         AND obj_type <> 'IOBJ'
         AND obj_type <> 'TOBJ'
         AND obj_type <> 'OTGR'.
+      APPEND <ls_result> TO rt_results.
+    ENDLOOP.
+
+* Enhancements might refer to other objects of the repo so create them after
+* Order: spots, composite spots, implementations, composite implementations
+    LOOP AT it_results ASSIGNING <ls_result> WHERE obj_type = 'ENHS'.
+      APPEND <ls_result> TO rt_results.
+    ENDLOOP.
+    LOOP AT it_results ASSIGNING <ls_result> WHERE obj_type = 'ENSC'.
+      APPEND <ls_result> TO rt_results.
+    ENDLOOP.
+    LOOP AT it_results ASSIGNING <ls_result> WHERE obj_type = 'ENHO'.
+      APPEND <ls_result> TO rt_results.
+    ENDLOOP.
+    LOOP AT it_results ASSIGNING <ls_result> WHERE obj_type = 'ENHC'.
       APPEND <ls_result> TO rt_results.
     ENDLOOP.
 

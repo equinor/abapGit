@@ -500,7 +500,7 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
 
         IF <ls_remote>-filename IS NOT INITIAL AND lv_ignored = abap_false.
           TRY.
-              zcl_abapgit_file_status=>identify_object(
+              zcl_abapgit_filename_logic=>file_to_object(
                 EXPORTING
                   iv_filename = <ls_remote>-filename
                   iv_path     = <ls_remote>-path
@@ -592,13 +592,15 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
     ri_html->add( `<div class="repo">` ).
+
     ri_html->add( zcl_abapgit_gui_chunk_lib=>render_repo_top(
                     io_repo               = mo_repo
                     iv_show_commit        = abap_false
                     iv_interactive_branch = abap_true ) ).
-    ri_html->add( `</div>` ).
 
     ri_html->add( mo_form->render( mo_form_data ) ).
+
+    ri_html->add( `</div>` ).
 
   ENDMETHOD.
 ENDCLASS.
