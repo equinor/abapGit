@@ -1,6 +1,6 @@
 {
   "global": {
-    "files": "/src/**/*.*",
+    "files": "/{test,src}/**/*.*",
     "skipGeneratedGatewayClasses": true,
     "skipGeneratedPersistentClasses": true,
     "skipGeneratedFunctionGroups": true
@@ -69,6 +69,7 @@
     "db_operation_in_loop": false,
     "select_performance": false,
     "max_one_method_parameter_per_line": true,
+    "unused_ddic": true,
     "prefer_raise_exception_new": true,
     "use_class_based_exceptions": true,
     "uncaught_exception": true,
@@ -113,7 +114,7 @@
       "check": ["^stringtab$", "^SYCHAR01$", "^char2$", "^char20$", "^int4$", "^SYREPID$",
         "^flag$", "^char12$", "^char10$", "^char70$", "^char4$", "^sydatum$", "^syuzeit$",
         "^syst_title$", "^sychar70$", "^char30$", "^char50$",
-        "^numc2$", "^sap_bool$", "^SYCHAR10$", "^sylangu$", "^langu$",
+        "^numc2$", "^sap_bool$", "^SYCHAR10$", "^sylangu$",
         "^cl_blue_wb_utility$", "^boole_d$",
         "^cl_srvd_wb_object_data$",
         "^cl_wb_object_operator_factory$",
@@ -130,6 +131,7 @@
     "prefix_is_current_class": true,
     "allowed_object_naming": true,
     "check_comments": false,
+    "cyclic_oo": false,
     "fully_type_constants": true,
     "keep_single_parameter_on_one_line": true,
     "prefer_returning_to_exporting": true,
@@ -205,7 +207,9 @@
     "definitions_top": {
       "exclude": ["/json/"]
     },
-    "description_empty": true,
+    "description_empty": {
+      "exclude": ["/test/"]
+    },
     "double_space": false,
     "empty_line_in_statement": {
       "allowChained": true
@@ -235,6 +239,7 @@
     "indentation": {
       "ignoreExceptions": true,
       "alignTryCatch": false,
+      "selectionScreenBlockIndentation": false,
       "globalClassSkipFirst": false,
       "ignoreGlobalClassDefinition": false,
       "ignoreGlobalInterface": false
@@ -322,6 +327,7 @@
       "ranges": true,
       "subtract": true,
       "freeMemory": true,
+      "exitFromSQL": true,
       "multiply": true,
       "communication": true,
       "typePools": true,

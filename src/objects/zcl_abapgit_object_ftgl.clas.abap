@@ -29,7 +29,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_ftgl IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_FTGL IMPLEMENTATION.
 
 
   METHOD clear_field.
@@ -85,6 +85,8 @@ CLASS zcl_abapgit_object_ftgl IMPLEMENTATION.
                                  && |Error {  sy-subrc } from cl_feature_toggle_object=>delete| ).
     ENDIF.
 
+    corr_insert( iv_package ).
+
   ENDMETHOD.
 
 
@@ -118,9 +120,7 @@ CLASS zcl_abapgit_object_ftgl IMPLEMENTATION.
         corr_insert( iv_package ).
 
       CATCH cx_root INTO lx_error.
-        zcx_abapgit_exception=>raise(
-            iv_text     = lx_error->get_text( )
-            ix_previous = lx_error ).
+        zcx_abapgit_exception=>raise_with_text( lx_error ).
     ENDTRY.
 
   ENDMETHOD.
@@ -203,9 +203,7 @@ CLASS zcl_abapgit_object_ftgl IMPLEMENTATION.
             ro_toggle    = lo_toggle.
 
       CATCH cx_root INTO lx_error.
-        zcx_abapgit_exception=>raise(
-            iv_text     = lx_error->get_text( )
-            ix_previous = lx_error ).
+        zcx_abapgit_exception=>raise_with_text( lx_error ).
     ENDTRY.
 
     CALL METHOD lo_toggle->('GET_CONTENT')

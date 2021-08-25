@@ -181,7 +181,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_REPO_VIEW IMPLEMENTATION.
 
 
   METHOD apply_order_by.
@@ -472,6 +472,11 @@ CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
       ro_toolbar->add( iv_txt = 'Import <sup>zip</sup>'
                        iv_act = |{ zif_abapgit_definitions=>c_action-zip_import }?key={ mv_key }|
                        iv_opt = zif_abapgit_html=>c_html_opt-strong ).
+      IF mo_repo->get_local_settings( )-write_protected = abap_true.
+        ro_toolbar->add( iv_txt = 'Compare <sup>rfc</sup>'
+                         iv_act = |{ zif_abapgit_definitions=>c_action-rfc_compare }?key={ mv_key }|
+                         iv_opt = zif_abapgit_html=>c_html_opt-strong ).
+      ENDIF.
       ro_toolbar->add( iv_txt = 'Export <sup>zip</sup>'
                        iv_act = |{ zif_abapgit_definitions=>c_action-zip_export }?key={ mv_key }|
                        iv_opt = zif_abapgit_html=>c_html_opt-strong ).
@@ -589,7 +594,7 @@ CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
         ms_control-page_menu = build_main_menu( ).
 
         " Read global settings to get max # of objects to be listed
-        lo_settings     = zcl_abapgit_persist_settings=>get_instance( )->read( ).
+        lo_settings     = zcl_abapgit_persist_factory=>get_settings( )->read( ).
         mv_max_lines    = lo_settings->get_max_lines( ).
         mv_max_setting  = mv_max_lines.
 

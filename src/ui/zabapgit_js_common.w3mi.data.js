@@ -86,6 +86,12 @@ if (!String.prototype.startsWith) {
   });
 }
 
+// forEach polyfill, taken from https://developer.mozilla.org
+// used for querySelectorAll results
+if (window.NodeList && !NodeList.prototype.forEach) {
+  NodeList.prototype.forEach = Array.prototype.forEach;
+}
+
 /**********************************************************
  * Common functions
  **********************************************************/
@@ -250,16 +256,160 @@ function RepoOverViewHelper() {
   this.toggleFilterIcon(icon, this.isDetailsDisplayed);
   icon = document.getElementById("icon-filter-favorite");
   this.toggleFilterIcon(icon, this.isOnlyFavoritesDisplayed);
+  this.registerRowSelection();
+  this.registerKeyboardShortcuts();
 }
+
+RepoOverViewHelper.prototype.setHooks = function () {
+  window.onload = this.onPageLoad.bind(this);
+};
+
+RepoOverViewHelper.prototype.onPageLoad = function () {
+  var data = window.localStorage && JSON.parse(window.localStorage.getItem(this.pageId));
+  if (data) {
+    if (data.isDetailsDisplayed) {
+      this.toggleItemsDetail(true);
+    }
+    if (data.isOnlyFavoritesDisplayed) {
+      this.toggleItemsFavorites(true);
+    }
+    if (data.selectedRepoKey) {
+      this.selectRowByRepoKey(data.selectedRepoKey);
+    } else {
+      this.selectRowByIndex(0);
+    }
+  }
+};
+
+RepoOverViewHelper.prototype.registerKeyboardShortcuts = function() {
+  var self = this;
+  document.addEventListener("keypress", function(event) {
+    if (document.activeElement.id === "filter") {
+      return;
+    }
+    var keycode = event.keyCode;
+    var rows = Array.prototype.slice.call(self.getVisibleRows());
+    var selected = document.querySelector(".repo.selected");
+    var indexOfSelected = rows.indexOf(selected);
+
+    if (keycode == 13 && // "enter" to open
+       document.activeElement.tagName.toLowerCase() != "input") { // prevent opening if command field has focus
+      self.openSelectedRepo();
+    } else if ((keycode == 52 || keycode == 100) && indexOfSelected > 0) {
+      // "4" for previous
+      self.selectRowByIndex(indexOfSelected - 1);
+    } else if ((keycode == 54 || keycode == 102) && indexOfSelected < rows.length - 1) {
+      // "6" for next
+      self.selectRowByIndex(indexOfSelected + 1);
+    }
+  });
+};
+
+RepoOverViewHelper.prototype.openSelectedRepo = function () {
+  this.selectedRepoKey = document.querySelector(".repo.selected").dataset.key;
+  this.saveLocalStorage();
+  document.querySelector(".repo.selected td.ro-go a").click();
+};
+
+RepoOverViewHelper.prototype.selectRowByIndex = function (index) {
+  var rows = this.getVisibleRows();
+  if (rows.length >= index) {
+    var selectedRow = rows[index];
+    if (selectedRow.classList.contains("selected")) {
+      return;
+    }
+
+    this.deselectAllRows();
+    rows[index].classList.add("selected");
+    this.selectedRepoKey = selectedRow.dataset.key;
+    this.updateActionLinks(selectedRow);
+    this.saveLocalStorage();
+  }
+};
+
+RepoOverViewHelper.prototype.selectRowByRepoKey = function (key) {
+  var attributeQuery = "[data-key='" + key + "']";
+  var row = document.querySelector(".repo" + attributeQuery);
+  // navigation to already selected repo
+  if (row.dataset.key === key && row.classList.contains("selected")) {
+    return;
+  }
+
+  this.deselectAllRows();
+  row.classList.add("selected");
+  this.selectedRepoKey = key;
+  this.updateActionLinks(row);
+  this.saveLocalStorage();
+};
+
+RepoOverViewHelper.prototype.updateActionLinks = function (selectedRow) {
+  // now we have a repo selected, determine which action buttons are relevant
+  var selectedRepoKey = selectedRow.dataset.key;
+  var selectedRepoIsOffline = selectedRow.dataset.offline === "X";
+
+  var actionLinks = document.querySelectorAll("a.action_link");
+  actionLinks.forEach(function (link) {
+    // adjust repo key in urls
+    link.href = link.href.replace(/\?key=(#|\d+)/, "?key=" + selectedRepoKey);
+
+    // toggle button visibility
+    if (link.classList.contains("action_offline_repo")) {
+      if (selectedRepoIsOffline) {
+        link.parentElement.classList.add("enabled");
+      } else {
+        link.parentElement.classList.remove("enabled");
+      }
+    }
+    else if (link.classList.contains("action_online_repo")) {
+      if (!selectedRepoIsOffline) {
+        link.parentElement.classList.add("enabled");
+      } else {
+        link.parentElement.classList.remove("enabled");
+      }
+    }
+    else {
+      // if the action is for both repository types, it will only have the .action_link class
+      // it still needs to be toggled as we want to hide everything if no repo is selected
+      link.parentElement.classList.add("enabled");
+    }
+  });
+};
+
+RepoOverViewHelper.prototype.deselectAllRows = function () {
+  document.querySelectorAll(".repo").forEach(function (x) {
+    x.classList.remove("selected");
+  });
+};
+
+RepoOverViewHelper.prototype.getVisibleRows = function () {
+  return document.querySelectorAll(".repo:not(.nodisplay)");
+};
+
+RepoOverViewHelper.prototype.registerRowSelection = function () {
+  var self = this;
+  document.querySelectorAll(".repo td:not(.ro-go)").forEach(function (repoListRowCell) {
+    repoListRowCell.addEventListener("click", function () {
+      self.selectRowByRepoKey(this.parentElement.dataset.key);
+    });
+  });
+
+  document.querySelectorAll(".repo td.ro-go").forEach(function (openRepoIcon) {
+    openRepoIcon.addEventListener("click", function () {
+      var selectedRow = this.parentElement;
+      self.selectRowByRepoKey(selectedRow.dataset.key);
+      self.openSelectedRepo();
+    });
+  });
+};
 
 RepoOverViewHelper.prototype.toggleRepoListDetail = function (forceDisplay) {
   if (this.detailCssClass) {
     this.toggleItemsDetail(forceDisplay);
-    this.saveFilter();
+    this.saveLocalStorage();
   }
 };
 
-RepoOverViewHelper.prototype.toggleItemsDetail = function(forceDisplay){
+RepoOverViewHelper.prototype.toggleItemsDetail = function (forceDisplay) {
   if (this.detailCssClass) {
     this.isDetailsDisplayed = forceDisplay || !this.isDetailsDisplayed;
 
@@ -273,7 +423,6 @@ RepoOverViewHelper.prototype.toggleItemsDetail = function(forceDisplay){
     }
 
     this.detailCssClass.style.display = this.isDetailsDisplayed ? "" : "none";
-    this.actionCssClass.style.display = this.isDetailsDisplayed ? "none" : "";
     var icon = document.getElementById("icon-filter-detail");
     this.toggleFilterIcon(icon, this.isDetailsDisplayed);
   }
@@ -291,10 +440,10 @@ RepoOverViewHelper.prototype.toggleFilterIcon = function (icon, isEnabled) {
 
 RepoOverViewHelper.prototype.toggleRepoListFavorites = function (forceDisplay) {
   this.toggleItemsFavorites(forceDisplay);
-  this.saveFilter();
+  this.saveLocalStorage();
 };
 
-RepoOverViewHelper.prototype.toggleItemsFavorites = function(forceDisplay){
+RepoOverViewHelper.prototype.toggleItemsFavorites = function (forceDisplay) {
   this.isOnlyFavoritesDisplayed = forceDisplay || !this.isOnlyFavoritesDisplayed;
   var repositories = document.getElementsByClassName("repo");
   var icon = document.getElementById("icon-filter-favorite");
@@ -303,38 +452,24 @@ RepoOverViewHelper.prototype.toggleItemsFavorites = function(forceDisplay){
     var repo = repositories[i];
     if (this.isOnlyFavoritesDisplayed) {
       if (!repo.classList.contains("favorite")) {
-        repo.style.display = "none";
+        repo.classList.add("nodisplay");
       }
     } else {
-      repo.style.display = "";
+      repo.classList.remove("nodisplay");
     }
   }
 };
 
-RepoOverViewHelper.prototype.setHooks = function () {
-  window.onload = this.onPageLoad.bind(this);
-};
-
-RepoOverViewHelper.prototype.saveFilter = function () {
+RepoOverViewHelper.prototype.saveLocalStorage = function () {
   if (!window.localStorage) return;
   var data = {
     isDetailsDisplayed: this.isDetailsDisplayed,
-    isOnlyFavoritesDisplayed: this.isOnlyFavoritesDisplayed
+    isOnlyFavoritesDisplayed: this.isOnlyFavoritesDisplayed,
+    selectedRepoKey: this.selectedRepoKey,
   };
   window.localStorage.setItem(this.pageId, JSON.stringify(data));
 };
 
-RepoOverViewHelper.prototype.onPageLoad = function () {
-  var data = window.localStorage && JSON.parse(window.localStorage.getItem(this.pageId));
-  if (data) {
-    if (data.isDetailsDisplayed) {
-      this.toggleItemsDetail(true);
-    }
-    if (data.isOnlyFavoritesDisplayed) {
-      this.toggleItemsFavorites(true);
-    }
-  }
-};
 
 /**********************************************************
  * STAGE PAGE Logic
@@ -1347,7 +1482,7 @@ LinkHints.prototype.hintActivate = function (hint) {
     this.activatedDropdown.classList.toggle("force-nav-hover");
     hint.parent.focus();
   } else if (hint.parent.type === "checkbox") {
-    hint.parent.checked = !hint.parent.checked;
+    this.toggleCheckbox(hint);
   } else if (hint.parent.type === "submit") {
     hint.parent.click();
   } else if (hint.parent.nodeName === "INPUT" || hint.parent.nodeName === "TEXTAREA") {
@@ -1355,6 +1490,19 @@ LinkHints.prototype.hintActivate = function (hint) {
   } else {
     hint.parent.click();
     if (this.activatedDropdown) this.closeActivatedDropdown();
+  }
+};
+
+LinkHints.prototype.toggleCheckbox = function (hint) {
+  // ensures that onclick handler is executed
+  // https://stackoverflow.com/questions/41981509/trigger-an-event-when-a-checkbox-is-changed-programmatically-via-javascript
+  var event = document.createEvent("HTMLEvents");
+  var checked = hint.parent.checked;
+  event.initEvent("click", false, true);
+  hint.parent.parentElement.dispatchEvent(event);
+  if (checked === hint.parent.checked) {
+    // fallback if no handler is registered
+    hint.parent.checked = !hint.parent.checked;
   }
 };
 

@@ -127,7 +127,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_router IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
 
 
   METHOD abapgit_services_actions.
@@ -335,11 +335,16 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
           lv_answer                   TYPE c LENGTH 1,
           lv_question_text            TYPE string,
           lv_question_title           TYPE string,
-          lv_show_create_branch_popup TYPE c LENGTH 1.
+          lv_show_create_branch_popup TYPE c LENGTH 1,
+          lx_error                    TYPE REF TO cx_sy_move_cast_error.
 
     lv_key   = ii_event->query( )->get( 'KEY' ).
     lv_seed  = ii_event->query( )->get( 'SEED' ).
-    lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( lv_key ).
+    TRY.
+        lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( lv_key ).
+      CATCH cx_sy_move_cast_error INTO lx_error.
+        zcx_abapgit_exception=>raise( `Staging is only possible for online repositories.` ).
+    ENDTRY.
 
     IF lo_repo->get_local_settings( )-code_inspector_check_variant IS NOT INITIAL.
 
@@ -488,7 +493,7 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
       lv_adt_link          TYPE string,
       lv_adt_jump_enabled  TYPE abap_bool.
 
-    lv_adt_jump_enabled = zcl_abapgit_persist_settings=>get_instance( )->read( )->get_adt_jump_enabled( ).
+    lv_adt_jump_enabled = zcl_abapgit_persist_factory=>get_settings( )->read( )->get_adt_jump_enabled( ).
     IF lv_adt_jump_enabled = abap_true.
       TRY.
           CALL METHOD ('CL_CTS_ADT_TM_URI_BUILDER')=>('CREATE_ADT_URI')
@@ -695,10 +700,15 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
   METHOD zip_services.
 
-    DATA: lv_key  TYPE zif_abapgit_persistence=>ty_repo-key,
-          lo_repo TYPE REF TO zcl_abapgit_repo,
-          lv_path TYPE string,
-          lv_xstr TYPE xstring.
+    DATA: lv_key            TYPE zif_abapgit_persistence=>ty_repo-key,
+          lo_repo           TYPE REF TO zcl_abapgit_repo,
+          lv_path           TYPE string,
+          lv_dest           TYPE rfcdest,
+          lv_msg            TYPE c LENGTH 200,
+          lv_xstr           TYPE xstring,
+          lv_package        TYPE zif_abapgit_persistence=>ty_repo-package,
+          lv_folder_logic   TYPE string,
+          lv_main_lang_only TYPE zif_abapgit_persistence=>ty_local_settings-main_language_only.
 
     CONSTANTS:
       BEGIN OF lc_page,
@@ -709,13 +719,46 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
     lv_key = ii_event->query( )->get( 'KEY' ).
 
     CASE ii_event->mv_action.
-      WHEN zif_abapgit_definitions=>c_action-zip_import.                      " Import repo from ZIP
+      WHEN zif_abapgit_definitions=>c_action-zip_import                       " Import repo from ZIP
+        OR zif_abapgit_definitions=>c_action-rfc_compare.                     " Compare repo via RFC
+
         lo_repo = zcl_abapgit_repo_srv=>get_instance( )->get( lv_key ).
-        lv_path = zcl_abapgit_ui_factory=>get_frontend_services( )->show_file_open_dialog(
-          iv_title            = 'Import ZIP'
-          iv_extension        = 'zip'
-          iv_default_filename = '*.zip' ).
-        lv_xstr = zcl_abapgit_ui_factory=>get_frontend_services( )->file_upload( lv_path ).
+
+        IF ii_event->mv_action = zif_abapgit_definitions=>c_action-zip_import.
+          lv_path = zcl_abapgit_ui_factory=>get_frontend_services( )->show_file_open_dialog(
+            iv_title            = 'Import ZIP'
+            iv_extension        = 'zip'
+            iv_default_filename = '*.zip' ).
+          lv_xstr = zcl_abapgit_ui_factory=>get_frontend_services( )->file_upload( lv_path ).
+        ELSE.
+          lv_dest = zcl_abapgit_ui_factory=>get_popups( )->popup_search_help( 'RFCDES-RFCDEST' ).
+
+          IF lv_dest IS INITIAL.
+            rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
+            RETURN.
+          ENDIF.
+
+          lv_package            = lo_repo->get_package( ).
+          lv_folder_logic       = lo_repo->get_dot_abapgit( )->get_folder_logic( ).
+          lv_main_lang_only     = lo_repo->get_local_settings( )-main_language_only.
+
+          CALL FUNCTION 'Z_ABAPGIT_SERIALIZE_PACKAGE'
+            DESTINATION lv_dest
+            EXPORTING
+              iv_package            = lv_package
+              iv_folder_logic       = lv_folder_logic
+              iv_main_lang_only     = lv_main_lang_only
+            IMPORTING
+              ev_xstring            = lv_xstr
+            EXCEPTIONS
+              system_failure        = 1 MESSAGE lv_msg
+              communication_failure = 2 MESSAGE lv_msg
+              OTHERS                = 3.
+          IF sy-subrc <> 0.
+            zcx_abapgit_exception=>raise( |RFC import error: { lv_msg }| ).
+          ENDIF.
+        ENDIF.
+
         lo_repo->set_files_remote( zcl_abapgit_zip=>load( lv_xstr ) ).
         zcl_abapgit_services_repo=>refresh( lv_key ).
 

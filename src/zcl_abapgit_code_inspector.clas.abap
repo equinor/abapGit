@@ -244,8 +244,8 @@ CLASS ZCL_ABAPGIT_CODE_INSPECTOR IMPLEMENTATION.
 
   METHOD decide_run_mode.
 
-    DATA: lo_settings TYPE REF TO zcl_abapgit_settings.
-    lo_settings = zcl_abapgit_persist_settings=>get_instance( )->read( ).
+    DATA lo_settings TYPE REF TO zcl_abapgit_settings.
+    lo_settings = zcl_abapgit_persist_factory=>get_settings( )->read( ).
 
     IF sy-batch = abap_true.
       " We have to disable parallelization in batch because of lock errors.
@@ -362,8 +362,7 @@ CLASS ZCL_ABAPGIT_CODE_INSPECTOR IMPLEMENTATION.
 
         " ensure cleanup
         cleanup( lo_set ).
-        zcx_abapgit_exception=>raise( iv_text     = lx_error->get_text( )
-                                      ix_previous = lx_error ).
+        zcx_abapgit_exception=>raise_with_text( lx_error ).
 
     ENDTRY.
 
